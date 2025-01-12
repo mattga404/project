@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Responsive SPA</title>
+    <link rel="stylesheet" href="styles.css">
+    <script defer src="app.js"></script>
+    <style>
+        body {
+            display: flex;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        header {
+            width: 100%;
+            background-color: #333;
+            color: white;
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        header nav a {
+            color: white;
+            text-decoration: none;
+            margin: 0 10px;
+        }
+        header nav a:hover {
+            text-decoration: underline;
+        }
+        .sidebar {
+            width: 200px;
+            background-color: #f4f4f4;
+            padding: 15px;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+        }
+        .sidebar a {
+            display: block;
+            color: #333;
+            text-decoration: none;
+            margin: 5px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .sidebar a:hover {
+            background-color: #ddd;
+        }
+        #main-content {
+            flex-grow: 1;
+            padding: 20px;
+        }
+        @media (max-width: 768px) {
+            .sidebar {
+                display: none;
+            }
+            header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            header nav {
+                margin-top: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <a href="#" data-page="home">Home</a>
+        <a href="#" data-page="about">About</a>
+        <a href="#" data-page="contact">Contact</a>
+    </div>
+
+    <div style="flex-grow: 1;">
+        <header>
+            <h1>Single Page Application</h1>
+            <nav>
+                <a href="#" data-page="home">Home</a>
+                <a href="#" data-page="about">About</a>
+                <a href="#" data-page="contact">Contact</a>
+                <a id="logout-link" href="#">Logout</a>
+            </nav>
+        </header>
+
+        <main id="main-content">
+            <!-- Dynamic content will be loaded here -->
+            <section id="home">
+                <h2>Welcome to the Home Page</h2>
+                <p>This is the home section of the Single Page Application.</p>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        
+        // CHECKING LOGIN SESSION:
+        async function checkSession() {
+            try {
+                const response = await fetch('api/check_session.php');
+                const data = await response.json();
+
+                if (!data.authenticated) {
+                    window.location.href = 'login.html';
+                }
+            } catch (err) {
+                console.error('Error checking session:', err);
+            }
+        }
+
+          // DYNAMIC PAGE/CONTENT SECTION:
+        const contentMap = {
+            home: `
+                <section id="home">
+                    <h2>Welcome to the Home Page</h2>
+                    <p>This is the home section of the Single Page Application.</p>
+                </section>
+            `,
+            about: `
+                <section id="about">
+                    <h2>About Us</h2>
+                    <table id="items-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Price</th>
+                                <th>Quantity</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Rows will be dynamically populated -->
+                        </tbody>
+                    </table>
+                </section>
+            `,
+            contact: `
+                <section id="contact">
+                    <h2>Contact Us</h2>
+                    <p>Feel free to contact us at <a href="mailto:support@example.com">support@example.com</a>.</p>
+                </section>
+            `
+        };
+
+        async function loadItems() {
+            const tableBody = document.querySelector('#items-table tbody');
+            tableBody.innerHTML = '';
+
+            try {
+                const response = await fetch('api/items.php');
+                const items = await response.json();
+
+                items.forEach(item => {
+                    const row = document.createElement('tr');
+
+                    row.innerHTML = `
+                        <td>${item.id}</td>
+                        <td><input type="text" value="${item.name}" data-id="${item.id}" data-field="name" /></td>
+                        <td><input type="number" value="${item.price}" data-id="${item.id}" data-field="price" /></td>
+                        <td><input type="number" value="${item.quantity}" data-id="${item.id}" data-field="quantity" /></td>
+                        <td><button class="update-btn" data-id="${item.id}">Update</button></td>
+                    `;
+
+                    tableBody.appendChild(row);
+                });
+
+                document.querySelectorAll('.update-btn').forEach(button => {
+                    button.addEventListener('click', async (e) => {
+                        const id = e.target.dataset.id;
+                        const rowInputs = tableBody.querySelectorAll(`input[data-id="${id}"]`);
+
+                        const updatedData = {};
+                        rowInputs.forEach(input => {
+                            updatedData[input.dataset.field] = input.value;
+                        });
+
+                        try {
+                            const updateResponse = await fetch('api/update_item.php', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({ id, ...updatedData })
+                            });
+
+                            const updateResult = await updateResponse.json();
+                            if (updateResult.success) {
+                                alert('Item updated successfully!');
+                            } else {
+                                alert('Failed to update item.');
+                            }
+                        } catch (err) {
+                            console.error('Error updating item:', err);
+                        }
+                    });
+                });
+            } catch (err) {
+                console.error('Error loading items:', err);
+            }
+        }
+
+        function loadPage(page) {
+            const mainContent = document.getElementById('main-content');
+            mainContent.innerHTML = contentMap[page];
+
+            if (page === 'about') {
+                loadItems();
+            }
+        }
+
+        document.querySelectorAll('nav a[data-page], .sidebar a[data-page]').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const page = link.getAttribute('data-page');
+                loadPage(page);
+            });
+        });
+
+        document.getElementById('logout-link').addEventListener('click', async () => {
+            try {
+                const response = await fetch('api/logout.php');
+                const data = await response.json();
+
+                if (data.success) {
+                    window.location.href = 'login.html';
+                } else {
+                    alert('Failed to log out.');
+                }
+            } catch (err) {
+                console.error('Error logging out:', err);
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await checkSession();
+            loadPage('home');
+        });
+    </script>
+</body>
+</html>
